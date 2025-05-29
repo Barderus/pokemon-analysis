@@ -1,0 +1,19 @@
+#,Name,Type 1,Type 2,Total,HP,Attack,Defense,Sp. Atk,Sp. Def,Speed,Generation,Category,Role
+1,Bulbasaur,Grass,Poison,318,45,49,49,65,65,45,1,Normal,Unclassified
+4,Charmander,Fire,,309,39,52,43,60,50,65,1,Normal,Unclassified
+7,Squirtle,Water,,314,44,48,65,50,64,43,1,Normal,Unclassified
+152,Chikorita,Grass,,318,45,49,65,49,65,45,2,Normal,Unclassified
+155,Cyndaquil,Fire,,309,39,52,43,60,50,65,2,Normal,Unclassified
+158,Totodile,Water,,314,50,65,64,44,48,43,2,Normal,Unclassified
+252,Treecko,Grass,,310,40,45,35,65,55,70,3,Normal,Speedster
+255,Torchic,Fire,,310,45,60,40,70,50,45,3,Normal,Special DPS
+258,Mudkip,Water,,310,50,70,50,50,50,40,3,Normal,Unclassified
+387,Turtwig,Grass,,318,55,68,64,45,55,31,4,Normal,Unclassified
+390,Chimchar,Fire,,309,44,58,44,58,44,61,4,Normal,Unclassified
+393,Piplup,Water,,314,53,51,53,61,56,40,4,Normal,Unclassified
+495,Snivy,Grass,,308,45,45,55,45,55,63,5,Normal,Unclassified
+498,Tepig,Fire,,308,65,63,45,45,45,45,5,Normal,Unclassified
+501,Oshawott,Water,,308,55,55,45,63,45,45,5,Normal,Unclassified
+650,Chespin,Grass,,313,56,61,65,48,45,38,6,Normal,Unclassified
+653,Fennekin,Fire,,307,40,45,40,62,60,60,6,Normal,Unclassified
+656,Froakie,Water,,314,41,56,40,62,44,71,6,Normal,Speedster
