@@ -1,9 +1,9 @@
 import pandas as pd
 
 def load_all_data():
-    df = pd.read_csv("../all_pokemon.csv")
-    starter_df = pd.read_csv("../starter_pokemon.csv")
-    legendary_df = pd.read_csv("../legendary_pokemon.csv")
+    df = pd.read_csv("../data/all_pokemon.csv")
+    starter_df = pd.read_csv("../data/starter_pokemon.csv")
+    legendary_df = pd.read_csv("../data/legendary_pokemon.csv")
     return df, starter_df, legendary_df
 
 def get_starter_list():
