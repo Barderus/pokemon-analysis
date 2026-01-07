@@ -1,27 +1,43 @@
 def calculate_thresholds(df):
     return {
-        "Attack": df["Attack"].median(),
-        "Sp. Atk": df["Sp. Atk"].median(),
-        "HP": df["HP"].median(),
-        "Defense": df["Defense"].median(),
-        "Sp. Def": df["Sp. Def"].median(),
-        "Speed": df["Speed"].median()
+        "attack": df["attack"].median(),
+        "sp_attack": df["sp_attack"].median(),
+        "hp": df["hp"].median(),
+        "defense": df["defense"].median(),
+        "sp_defense": df["sp_defense"].median(),
+        "speed": df["speed"].median(),
+        "offense_score": df["offense_score"].median(),
+        "bulk_score": df["bulk_score"].median(),
+        "avg_damage_taken": df["avg_damage_taken"].median(),
     }
 
 def assign_single_role(row, thresholds):
-    atk, sp_atk, hp, defense, sp_def, speed = row[["Attack", "Sp. Atk", "HP", "Defense", "Sp. Def", "Speed"]]
-    if hp > thresholds["HP"] and (defense > thresholds["Defense"] or sp_def > thresholds["Sp. Def"]):
+    atk = row["attack"]
+    sp_atk = row["sp_attack"]
+    speed = row["speed"]
+
+    offense = row["offense_score"]
+    bulk = row["bulk_score"]
+    avg_dmg = row["avg_damage_taken"]
+
+    # WALL: extremely bulky, low damage taken
+    if bulk >= thresholds["bulk_score"] and avg_dmg <= thresholds["avg_damage_taken"]:
         return "Wall"
-    elif atk > thresholds["Attack"] and sp_atk > thresholds["Sp. Atk"]:
-        return "DPS"
-    elif sp_atk > thresholds["Sp. Atk"]:
-        return "Special DPS"
-    elif hp > thresholds["HP"] or defense > thresholds["Defense"]:
+
+    # TANK: bulky but not a full wall
+    if bulk >= thresholds["bulk_score"]:
         return "Tank"
-    elif hp > thresholds["HP"] or sp_def > thresholds["Sp. Def"]:
-        return "Special Tank"
-    elif speed > thresholds["Speed"]:
+
+    # SPEEDSTER: fast + decent offense
+    if speed >= thresholds["speed"] and offense >= thresholds["offense_score"]:
         return "Speedster"
-    elif atk > thresholds["Attack"] or sp_atk > thresholds["Sp. Atk"]:
-        return "DPS 2"
+
+    # DPS: high offensive output (physical or special)
+    if offense >= thresholds["offense_score"]:
+        return "DPS"
+
+    # FALLBACKS (keeps everything classified)
+    if atk >= thresholds["attack"] or sp_atk >= thresholds["sp_attack"]:
+        return "DPS"
+
     return "Unclassified"
