@@ -1,52 +1,62 @@
 import pandas as pd
-from loader import load_all_data, get_starter_list
-from team import select_team_members
+from team import select_team_members, generate_teams
 from stats import analyze_team_stats
+from roles import calculate_thresholds, assign_single_role
 
-# Load data
-df, starter_df, legendary_df = load_all_data()
+# Load dataset and assign a single role per Pokémon using computed thresholds
+df = pd.read_csv("../data/preprocessed/pokemon_preprocessed.csv")
+thresholds = calculate_thresholds(df)
+df["role"] = df.apply(assign_single_role, axis=1, thresholds=thresholds)
 
-# Remove Mythicals
-mythical_names = [
-    "Mew", "Celebi", "Jirachi", "Manaphy", "Darkrai", "Shaymin", "Arceus",
-    "Victini", "Keldeo", "Meloetta", "Genesect", "Diancie", "Hoopa", "Volcanion",
-    "Magearna", "Marshadow", "Zeraora", "Meltan", "Melmetal", "Zarude"
-]
-df = df[~df["Name"].isin(mythical_names)]
-starter_df = starter_df[~starter_df["Name"].isin(mythical_names)]
-legendary_df = df[df["Category"].str.lower() == "legendary"]
+def get_starter_list():
+    return {
+        "Kanto": ["Bulbasaur", "Charmander", "Squirtle"],
+        "Johto": ["Chikorita", "Cyndaquil", "Totodile"],
+        "Hoenn": ["Treecko", "Torchic", "Mudkip"],
+        "Sinnoh": ["Turtwig", "Chimchar", "Piplup"],
+        "Unova": ["Snivy", "Tepig", "Oshawott"],
+        "Kalos": ["Chespin", "Fennekin", "Froakie"],
+        "Alola": ["Rowlet", "Litten", "Popplio"]
+    }
 
 starter_dict = get_starter_list()
-all_starters = [name for gen in starter_dict.values() for name in gen]
+
+all_starters = [s for gen in starter_dict.values() for s in gen]
 
 while True:
     print("\nChoose your starter from this list (or enter 0 to quit):")
     for gen, starters in starter_dict.items():
         print(f"{gen}: {', '.join(starters)}")
 
-    starter_name = input("> ").strip().title()
+    raw_input_name = input("> ").strip()
 
-    if starter_name == "0":
-        print("Exiting the team builder. Goodbye!")
+    if raw_input_name == "0":
         break
 
-    if starter_name not in all_starters:
-        print(f"'{starter_name}' is not a valid starter. Please try again.")
+    # Match starter ignoring capitalization
+    matches = [s for s in all_starters if s.lower() == raw_input_name.lower()]
+    if not matches:
+        print(f"'{raw_input_name}' is not a valid starter. Please try again.")
         continue
 
-    starter = starter_df[starter_df["Name"] == starter_name].iloc[0]
+    starter_name = matches[0]
 
-    team = select_team_members(starter, df, legendary_df)
-    team_df = pd.DataFrame(team)
+    # Pull the selected starter row from the dataset
+    starter_rows = df[df["name"].str.lower() == starter_name.lower()]
+    if starter_rows.empty:
+        print(f"Starter '{starter_name}' not found in dataset.")
+        continue
 
-    print("\nYour Recommended Team:")
-    print(team_df[["Name", "Type 1", "Type 2", "Role", "Total"]])
+    starter = starter_rows.iloc[0]
 
-    print("\n Team Stat Analysis:\n")
-    analyze_team_stats(team_df, df)
+    # Build multiple team variants around the chosen starter
+    teams = generate_teams(starter, df, n_teams=3, team_size_target=6)
 
-    save_choice = input("\n Would you like to save this team to a CSV file? (y/n): ").strip().lower()
-    if save_choice == "y":
-        filename = f"team_{starter_name.lower()}.csv"
-        team_df.to_csv(filename, index=False)
-        print(f" Team saved as '{filename}'")
+    for i, team in enumerate(teams, 1):
+        team_df = pd.DataFrame(team)
+        print(f"\n=== Recommended Team #{i} ===\n")
+        print(team_df[["name", "type1", "role"]])
+        analyze_team_stats(team_df, df)
+
+    if input("\nSave this team to CSV? (y/n): ").strip().lower() == "y":
+        team_df.to_csv(f"team_{starter_name.lower()}.csv", index=False)
