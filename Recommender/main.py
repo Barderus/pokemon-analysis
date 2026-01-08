@@ -49,8 +49,26 @@ while True:
 
     starter = starter_rows.iloc[0]
 
+    enemy_input = input("\nEnter enemy team (comma-separated names), or press Enter to skip:\n> ").strip()
+
+    enemy_team_df = None
+    if enemy_input:
+        enemy_names = [x.strip() for x in enemy_input.split(",") if x.strip()]
+
+        enemy_rows = []
+        for name in enemy_names:
+            match = df[df["name"].str.lower() == name.lower()]
+            if match.empty:
+                print(f"Warning: '{name}' not found in dataset (skipping).")
+                continue
+            enemy_rows.append(match.iloc[0])
+
+        if enemy_rows:
+            enemy_team_df = pd.DataFrame(enemy_rows)
+
+
     # Build multiple team variants around the chosen starter
-    teams = generate_teams(starter, df, n_teams=3, team_size_target=6)
+    teams = generate_teams(starter, df, n_teams=3, team_size_target=6, enemy_team_df=enemy_team_df)
 
     for i, team in enumerate(teams, 1):
         team_df = pd.DataFrame(team)
