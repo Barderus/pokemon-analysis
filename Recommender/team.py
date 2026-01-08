@@ -32,6 +32,13 @@ ROLE_WEIGHTS = {
     },
 }
 
+ENEMY_OFFENSE_WEIGHT = 20.0   # prefer types that enemy is weak to
+ENEMY_DEFENSE_WEIGHT = 12.0   # avoid types that enemy will hit super effectively
+# Add extra weights to stop the rec system from just picking the strongest pokemon (smart-pants)
+TEAM_COVERAGE_WEIGHT = 50
+TEAM_COVERAGE_WEIGHT_VS_ENEMY = 10
+
+
 def get_against_cols(df):
     # Type matchup multipliers (ex: against_fire, against_water, etc.)
     return [c for c in df.columns if c.startswith("against_")]
@@ -62,7 +69,34 @@ def general_score(row):
     score -= 0.6 * row.get("avg_damage_taken", 0)
     return score
 
-def build_one_team(starter, df, team_size_target=6, top_n=12, non_legendaries=None):
+def enemy_attack_types(enemy_team_df):
+    """
+    Enemy offensive "threat types" approximated by their type1/type2.
+    """
+    types = set()
+    for _, r in enemy_team_df.iterrows():
+        t1, t2 = r.get("type1"), r.get("type2")
+        if pd.notna(t1):
+            types.add(str(t1).lower())
+        if pd.notna(t2):
+            types.add(str(t2).lower())
+    return list(types)
+
+def build_enemy_profiles(enemy_team_df, against_cols):
+    """
+    Returns:
+      - enemy_weakness_profile: mean of enemy against_* (higher = they take more damage)
+      - enemy_attack_type_list: enemy types to defend against
+    """
+    # Mean damage enemy takes from each attacking type
+    enemy_weakness_profile = enemy_team_df[against_cols].mean()
+
+    # Types enemy likely attacks with (approx via their typing)
+    enemy_types = enemy_attack_types(enemy_team_df)
+
+    return enemy_weakness_profile, enemy_types
+
+def build_one_team(starter, df, team_size_target=6, top_n=12, non_legendaries=None, enemy_team_df=None):
     against_cols = get_against_cols(df)
 
     # Restrict candidate pool to non-legendary Pokémon
@@ -70,6 +104,16 @@ def build_one_team(starter, df, team_size_target=6, top_n=12, non_legendaries=No
         non_legendaries = df.copy()
         if "is_legendary" in non_legendaries.columns:
             non_legendaries = non_legendaries[non_legendaries["is_legendary"] != 1]
+
+    if "base_total" in non_legendaries.columns and pd.notna(starter.get("base_total")):
+        power_cap = starter["base_total"] + 150
+        non_legendaries = non_legendaries[non_legendaries["base_total"] <= power_cap]
+
+
+    enemy_profile = None
+    enemy_types = []
+    if enemy_team_df is not None and not enemy_team_df.empty and against_cols:
+        enemy_profile, enemy_types = build_enemy_profiles(enemy_team_df, against_cols)
 
     team = [starter]
     used_names = {starter["name"]}
@@ -97,18 +141,62 @@ def build_one_team(starter, df, team_size_target=6, top_n=12, non_legendaries=No
         row_vals = row[against_cols]
         return (current_means * running_n + row_vals) / (running_n + 1)
 
+    def enemy_offense_bonus(row):
+        """
+        Bonus if candidate's type(s) hit enemy weaknesses.
+        Uses enemy's against_type multipliers directly (higher = better for us).
+        """
+        if enemy_profile is None:
+            return 0
+
+        best = 1.0
+        for t in [row.get("type1"), row.get("type2")]:
+            if pd.notna(t):
+                col = "against_" + str(t).lower()
+                if col in enemy_profile.index:
+                    best = max(best, float(enemy_profile[col]))
+
+        return best - 1.0
+
+        # Center at 1.0 so neutral = 0 bonus; super-effective > 0; resisted < 0
+        return best - 1.0
+
+    def enemy_defense_penalty(row):
+        """
+        Penalty if candidate takes high damage from enemy types (their likely attacks).
+        Uses candidate against_enemy_type columns (higher = worse for us).
+        """
+        if not enemy_types or not use_matchups:
+            return 0
+
+        vals = []
+        for t in enemy_types:
+            col = "against_" + str(t).lower()
+            if col in row.index and pd.notna(row[col]):
+                vals.append(float(row[col]))
+
+        if not vals:
+            return 0
+
+        return (sum(vals) / len(vals)) - 1.0
+
     def score_candidate(row, role=None):
         score = compute_role_score(row, role) if role else general_score(row)
 
-        # Reward candidates that reduce the team’s worst matchup
+        # Reward candidates that reduce the team’s worst matchup and add coverage weight to avoid the system from picking the strongest pokemon
         if use_matchups:
             new_means = update_means(team_means, row)
-            score += (current_worst - new_means.max()) * 50
+            coverage_w = TEAM_COVERAGE_WEIGHT_VS_ENEMY if enemy_team_df is not None else TEAM_COVERAGE_WEIGHT
+            score += (current_worst - new_means.max()) * coverage_w
 
         # Small bonus for introducing a new secondary type
         t2 = row.get("type2")
         if pd.notna(t2) and t2 not in used_types:
             score += 2
+
+        # Enemy-aware scoring (if enemy team provided)
+        score += ENEMY_OFFENSE_WEIGHT * enemy_offense_bonus(row)
+        score -= ENEMY_DEFENSE_WEIGHT * enemy_defense_penalty(row)
 
         return score
 
@@ -169,7 +257,7 @@ def build_one_team(starter, df, team_size_target=6, top_n=12, non_legendaries=No
 
     return team
 
-def generate_teams(starter, df, n_teams=3, team_size_target=6):
+def generate_teams(starter, df, n_teams=3, team_size_target=6, enemy_team_df=None):
     teams = []
     seen = set()
 
@@ -186,7 +274,10 @@ def generate_teams(starter, df, n_teams=3, team_size_target=6):
             df,
             team_size_target=team_size_target,
             non_legendaries=non_legendaries,
+            enemy_team_df=enemy_team_df,
         )
+        if len(team) != team_size_target:
+            continue
 
         # Signature prevents duplicate team compositions
         sig = tuple(sorted([p["name"] for p in team]))
